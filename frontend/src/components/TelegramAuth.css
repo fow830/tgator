@@ -1,0 +1,68 @@
+.telegram-auth {
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.form-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.form-actions .btn {
+  flex: 1;
+}
+
+.profile-info {
+  background-color: #f5f5f5;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.profile-item {
+  margin-bottom: 16px;
+}
+
+.profile-item:last-child {
+  margin-bottom: 0;
+}
+
+.profile-item label {
+  display: block;
+  font-weight: 600;
+  color: #666;
+  margin-bottom: 4px;
+  font-size: 14px;
+}
+
+.profile-value {
+  color: #333;
+  font-size: 16px;
+  word-break: break-all;
+}
+
+.alert-info {
+  background-color: #e3f2fd;
+  color: #1976d2;
+  border: 1px solid #90caf9;
+}
+
+.alert-success {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+  border: 1px solid #81c784;
+}
+
+.alert-error {
+  background-color: #ffebee;
+  color: #c62828;
+  border: 1px solid #ef5350;
+}
+
+.alert {
+  padding: 12px;
+  border-radius: 4px;
+  margin-bottom: 16px;
+}
+

@@ -1,0 +1,46 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Chat {
+  id        String   @id @default(cuid())
+  chatId    String   @unique // Telegram chat ID
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  alerts Alert[]
+}
+
+model Keyword {
+  id        String   @id @default(cuid())
+  keyword   String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  alerts Alert[]
+}
+
+model Alert {
+  id        String   @id @default(cuid())
+  chatId   String
+  keyword  String
+  message  String
+  messageId String?
+  createdAt DateTime @default(now())
+
+  chat    Chat?    @relation(fields: [chatId], references: [chatId], onDelete: Cascade)
+  keywordRef Keyword? @relation(fields: [keyword], references: [keyword], onDelete: Cascade)
+
+  @@index([chatId])
+  @@index([keyword])
+}
+
