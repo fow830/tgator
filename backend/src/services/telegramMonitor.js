@@ -1,6 +1,7 @@
 import { getTelegramClient } from './telegramClient.js';
 import { prisma } from '../models/index.js';
 import { alertService } from './alertService.js';
+import { config } from '../config/env.js';
 
 let isMonitoring = false;
 let monitoringInterval = null;
@@ -107,8 +108,8 @@ export const telegramMonitor = {
                 });
 
                 if (!existingAlert) {
-                  // Create alert in database
-                  await prisma.alert.create({
+                  // Create alert in database FIRST (always save to DB)
+                  const alert = await prisma.alert.create({
                     data: {
                       chatId: chat.chatId,
                       keyword: keyword.keyword,
@@ -117,13 +118,26 @@ export const telegramMonitor = {
                     },
                   });
 
-                  // Send alert
-                  await alertService.sendAlert({
-                    chatName: chat.name || chat.chatId,
-                    keyword: keyword.keyword,
-                    message: message.message,
-                    messageId: messageId,
-                  });
+                  console.log(`✅ Alert saved to database: ${alert.id} - ${keyword.keyword} in ${chat.name || chat.chatId}`);
+
+                  // Send alert to channel (if configured)
+                  // Don't fail if channel send fails - alert is already in DB
+                  try {
+                    if (config.alert.channelId && config.alert.channelId !== '@your_channel' && config.alert.channelId.trim() !== '') {
+                      await alertService.sendAlert({
+                        chatName: chat.name || chat.chatId,
+                        keyword: keyword.keyword,
+                        message: message.message,
+                        messageId: messageId,
+                      });
+                      console.log(`✅ Alert sent to channel: ${config.alert.channelId}`);
+                    } else {
+                      console.log('⚠️ Alert channel not configured, alert saved to database only');
+                    }
+                  } catch (alertError) {
+                    console.error('⚠️ Failed to send alert to channel, but alert saved to database:', alertError.message);
+                    // Alert is already in DB, so we continue
+                  }
                 }
               }
             }

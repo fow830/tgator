@@ -1,23 +1,23 @@
 # Dependencies
 node_modules/
-.pnp
-.pnp.js
+backend/node_modules/
+frontend/node_modules/
 
 # Environment variables
 .env
+backend/.env
 .env.local
-.env.*.local
+.env.production
 
-# Telegram session
-backend/.session
-*.session
+# Build outputs
+frontend/dist/
+frontend/build/
 
 # Logs
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-lerna-debug.log*
+logs/
+backend/logs/
+/var/log/tgator/
 
 # Database
 backend/prisma/dev.db
@@ -25,23 +25,23 @@ backend/prisma/dev.db-journal
 *.db
 *.db-journal
 
-# Build outputs
-frontend/dist/
-frontend/build/
-*.tsbuildinfo
+# Session files
+backend/.session
+.session
+
+# OS
+.DS_Store
+Thumbs.db
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
-.DS_Store
+
+# PM2
+.pm2/
 
 # Temporary files
-*.code_hash
 *.tmp
-.cache/
-
-# OS
-Thumbs.db
+*.temp
