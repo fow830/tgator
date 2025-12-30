@@ -12,18 +12,232 @@ export const alertService = {
   /**
    * Send alert to channel
    */
-  async sendAlert({ chatName, keyword, message, messageId }) {
+  async sendAlert({ chatName, keyword, message, messageId, chatId, chatEntity, messageEntity }) {
     try {
-      const alertText = `🚨 Alert!\n\n` +
-        `Chat: ${chatName}\n` +
-        `Keyword: ${keyword}\n` +
-        `Message: ${message}\n` +
-        `Message ID: ${messageId}`;
-
-      console.log(`📤 Attempting to send alert to channel: ${config.alert.channelId}`);
-
       // Use user account to send alerts
       const client = await getTelegramClient();
+      
+      // Get sender information
+      let senderUsername = '-';
+      let senderPhone = '-';
+      
+      if (messageEntity) {
+        try {
+          let sender = null;
+          let senderId = null;
+          
+          // Try multiple ways to get sender ID
+          if (messageEntity.fromId) {
+            if (messageEntity.fromId instanceof Api.PeerUser) {
+              senderId = messageEntity.fromId.userId;
+            } else if (messageEntity.fromId.userId) {
+              senderId = messageEntity.fromId.userId;
+            } else if (typeof messageEntity.fromId === 'number' || typeof messageEntity.fromId === 'bigint') {
+              senderId = messageEntity.fromId;
+            }
+          } else if (messageEntity.senderId) {
+            if (messageEntity.senderId instanceof Api.PeerUser) {
+              senderId = messageEntity.senderId.userId;
+            } else if (messageEntity.senderId.userId) {
+              senderId = messageEntity.senderId.userId;
+            } else if (typeof messageEntity.senderId === 'number' || typeof messageEntity.senderId === 'bigint') {
+              senderId = messageEntity.senderId;
+            }
+          } else if (messageEntity.sender) {
+            // Direct sender object
+            sender = messageEntity.sender;
+          } else if (messageEntity.peerId && messageEntity.peerId instanceof Api.PeerUser) {
+            senderId = messageEntity.peerId.userId;
+          }
+          
+          // If we have senderId, get the user entity with FULL information
+          if (senderId && !sender) {
+            try {
+              // First try to get full user info
+              try {
+                const fullUser = await client.invoke(
+                  new Api.users.GetFullUser({
+                    id: new Api.InputUser({
+                      userId: BigInt(senderId),
+                      accessHash: 0n, // Will be resolved by Telegram
+                    }),
+                  })
+                );
+                
+                if (fullUser && fullUser.users && fullUser.users.length > 0) {
+                  sender = fullUser.users[0];
+                  // Full user info might have phone in fullUser.fullUser
+                  if (fullUser.fullUser && fullUser.fullUser.phone) {
+                    sender.phone = fullUser.fullUser.phone;
+                  }
+                }
+              } catch (fullUserError) {
+                // If getFullUser fails, try regular getEntity
+                console.log(`⚠️ Could not get full user info, trying regular entity: ${fullUserError.message}`);
+                sender = await client.getEntity(senderId);
+              }
+            } catch (entityError) {
+              console.log(`⚠️ Could not get entity for senderId ${senderId}: ${entityError.message}`);
+            }
+          }
+          
+          // Extract information from sender - try multiple sources
+          if (sender) {
+            if (sender instanceof Api.User) {
+              // Get username
+              senderUsername = sender.username ? `@${sender.username}` : '-';
+              
+              // Get phone - try multiple sources
+              if (sender.phone) {
+                senderPhone = sender.phone;
+              } else if (sender.phoneNumber) {
+                senderPhone = sender.phoneNumber;
+              } else {
+                // Try to get from full user info if available
+                try {
+                  if (senderId) {
+                    const fullUser = await client.invoke(
+                      new Api.users.GetFullUser({
+                        id: new Api.InputUser({
+                          userId: BigInt(senderId),
+                          accessHash: sender.accessHash || 0n,
+                        }),
+                      })
+                    );
+                    if (fullUser && fullUser.fullUser && fullUser.fullUser.phone) {
+                      senderPhone = fullUser.fullUser.phone;
+                    }
+                  }
+                } catch (phoneError) {
+                  // Phone not available or can't access
+                  senderPhone = '-';
+                }
+              }
+              
+              // If still no phone, try alternative method
+              if (senderPhone === '-' && senderId) {
+                try {
+                  // Get user by ID and check all fields
+                  const userEntity = await client.getEntity(senderId);
+                  if (userEntity && userEntity.phone) {
+                    senderPhone = userEntity.phone;
+                  }
+                } catch (e) {
+                  // Ignore
+                }
+              }
+              
+              // If still no username, try to get from first/last name
+              if (senderUsername === '-' && (sender.firstName || sender.lastName)) {
+                const name = `${sender.firstName || ''} ${sender.lastName || ''}`.trim();
+                if (name) {
+                  senderUsername = name;
+                }
+              }
+            } else if (sender instanceof Api.Channel) {
+              // Channel post - no sender
+              senderUsername = '-';
+              senderPhone = '-';
+            } else {
+              // Try to get username/phone from any object
+              senderUsername = sender.username ? `@${sender.username}` : (sender.firstName ? `${sender.firstName} ${sender.lastName || ''}`.trim() : '-');
+              senderPhone = sender.phone || sender.phoneNumber || '-';
+            }
+          } else {
+            console.log(`⚠️ Could not determine sender from message entity`);
+            console.log(`   Message entity keys: ${Object.keys(messageEntity).join(', ')}`);
+            if (messageEntity.fromId) {
+              console.log(`   fromId type: ${messageEntity.fromId.constructor?.name || typeof messageEntity.fromId}`);
+            }
+          }
+        } catch (senderError) {
+          console.log(`⚠️ Could not get sender info: ${senderError.message}`);
+          console.log(`   Error stack: ${senderError.stack}`);
+        }
+      } else {
+        console.log(`⚠️ messageEntity is not provided`);
+      }
+
+      // Generate message link
+      let messageLink = '-';
+      try {
+        let chatUsername = null;
+        
+        // Get chat username if available
+        if (chatEntity) {
+          if (chatEntity instanceof Api.Channel) {
+            chatUsername = chatEntity.username;
+          }
+        } else if (chatId) {
+          try {
+            const entity = await client.getEntity(parseInt(chatId));
+            if (entity instanceof Api.Channel && entity.username) {
+              chatUsername = entity.username;
+            }
+          } catch (e) {
+            // Ignore
+          }
+        }
+        
+        if (chatUsername) {
+          // Public channel/group - use username
+          messageLink = `https://t.me/${chatUsername}/${messageId}`;
+        } else if (chatId) {
+          // Private channel/group - use chat ID
+          // Format: https://t.me/c/CHAT_ID/MESSAGE_ID
+          // For channels, chatId needs to be converted: -100 + chatId
+          const numericChatId = parseInt(chatId);
+          // For supergroups/channels, ID format is -100XXXXXXXXXX
+          // We need to remove -100 prefix for the link
+          let channelId = numericChatId;
+          if (numericChatId < 0) {
+            channelId = Math.abs(numericChatId);
+          }
+          // If it's a channel ID (starts with 100), remove the 100 prefix
+          if (channelId.toString().length > 10 && channelId.toString().startsWith('100')) {
+            channelId = parseInt(channelId.toString().substring(3));
+          }
+          messageLink = `https://t.me/c/${channelId}/${messageId}`;
+        }
+      } catch (linkError) {
+        console.log(`⚠️ Could not generate message link: ${linkError.message}`);
+      }
+
+      // Find the line containing the keyword
+      let messageLine = message;
+      if (keyword && message) {
+        const lines = message.split('\n');
+        const keywordLower = keyword.toLowerCase();
+        // Find first line that contains any of the keywords (keyword might be comma-separated)
+        const keywords = keyword.split(',').map(k => k.trim().toLowerCase());
+        for (const line of lines) {
+          const lineLower = line.toLowerCase();
+          if (keywords.some(kw => lineLower.includes(kw))) {
+            messageLine = line.trim();
+            break;
+          }
+        }
+        // If no line found, use first line or full message (truncated)
+        if (messageLine === message && message.length > 100) {
+          messageLine = message.substring(0, 100) + '...';
+        }
+      }
+
+      // Format chat name as link (HTML format for Telegram)
+      const chatNameLink = messageLink !== '-' 
+        ? `<a href="${messageLink}">${chatName}</a>`
+        : chatName;
+
+      // Format alert text with new format
+      const alertText = `Чат: ${chatNameLink}\n` +
+        `Ключ: ${keyword}\n` +
+        `Отправитель: ${senderUsername}\n` +
+        `Телефон: ${senderPhone}\n` +
+        `➖➖➖➖➖\n` +
+        `${messageLine}\n` +
+        `➖➖➖➖➖`;
+
+      console.log(`📤 Attempting to send alert to channel: ${config.alert.channelId}`);
       
       // Parse channel ID (could be username or numeric ID)
       let targetEntity;
@@ -97,10 +311,12 @@ export const alertService = {
         }
       }
 
-      // Send message via user account
+      // Send message via user account with HTML parsing, disable link preview
       console.log(`📨 Sending message to channel...`);
       await client.sendMessage(targetEntity, {
         message: alertText,
+        parseMode: 'html', // Enable HTML parsing for links
+        linkPreview: false, // Disable link preview to avoid forwarded message appearance
       });
       
       console.log(`✅ Alert sent successfully to channel: ${config.alert.channelId}`);

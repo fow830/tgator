@@ -122,24 +122,46 @@ function ChatList() {
           <div className="empty-state">No chats added yet</div>
         ) : (
           <ul className="list">
-            {chats.map((chat) => (
-              <li key={chat.id} className="list-item">
-                <div className="list-item-content">
-                  <strong>{chat.name || chat.chatId}</strong>
-                  <div style={{ fontSize: '12px', color: '#999', marginTop: '5px' }}>
-                    ID: {chat.chatId}
+            {chats.map((chat) => {
+              const chatTypeLabels = {
+                'group': 'Группа',
+                'supergroup': 'Супергруппа',
+                'channel': 'Канал',
+              };
+              const chatTypeLabel = chat.chatType ? chatTypeLabels[chat.chatType] || chat.chatType : 'Неизвестно';
+              const joinDate = chat.joinDate ? new Date(chat.joinDate).toLocaleString('ru-RU', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+              }) : null;
+              
+              return (
+                <li key={chat.id} className="list-item">
+                  <div className="list-item-content">
+                    <strong>{chat.name || chat.chatId}</strong>
+                    <div style={{ fontSize: '12px', color: '#999', marginTop: '5px' }}>
+                      ID: {chat.chatId}
+                      {chat.chatType && (
+                        <> • Тип: <span style={{ color: '#666' }}>{chatTypeLabel}</span></>
+                      )}
+                      {joinDate && (
+                        <> • Вступление: <span style={{ color: '#666' }}>{joinDate}</span></>
+                      )}
+                    </div>
                   </div>
-                </div>
-                <div className="list-item-actions">
-                  <button
-                    className="btn btn-danger"
-                    onClick={() => handleDelete(chat.id)}
-                  >
-                    Remove
-                  </button>
-                </div>
-              </li>
-            ))}
+                  <div className="list-item-actions">
+                    <button
+                      className="btn btn-danger"
+                      onClick={() => handleDelete(chat.id)}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

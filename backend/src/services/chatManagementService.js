@@ -26,10 +26,13 @@ export const chatManagementService = {
       const chat = resolved.chats[0];
       let chatId = '';
       let chatName = '';
+      let chatType = '';
+      let joinDate = null;
 
       if (chat instanceof Api.Channel) {
         chatId = chat.id.toString();
         chatName = chat.title || chat.username || username;
+        chatType = chat.megagroup ? 'supergroup' : 'channel';
         
         // Join the channel
         await client.invoke(
@@ -40,15 +43,40 @@ export const chatManagementService = {
             }),
           })
         );
+        
+        // Get join date
+        try {
+          const participant = await client.invoke(
+            new Api.channels.GetParticipant({
+              channel: new Api.InputChannel({
+                channelId: chat.id,
+                accessHash: chat.accessHash,
+              }),
+              participant: new Api.InputPeerSelf(),
+            })
+          );
+          
+          if (participant.participant && participant.participant.date) {
+            joinDate = new Date(participant.participant.date * 1000);
+          }
+        } catch (error) {
+          console.log(`⚠️ Could not get join date: ${error.message}`);
+          // Use current date as fallback
+          joinDate = new Date();
+        }
       } else if (chat instanceof Api.Chat) {
         chatId = chat.id.toString();
         chatName = chat.title || username;
-        // For regular chats, user is already a member if we can resolve it
+        chatType = 'group';
+        // For regular chats, we're already a member, use current date
+        joinDate = new Date();
       }
 
       return {
         chatId: chatId || '',
         name: chatName || username,
+        chatType: chatType,
+        joinDate: joinDate,
       };
     } catch (error) {
       console.error('Error joining chat by username:', error);
@@ -100,20 +128,53 @@ export const chatManagementService = {
       }
 
       // Try to get chat info
+      let chatType = '';
+      let joinDate = new Date(); // For invite links, join date is now
+      
       if (chatId) {
         try {
-          const fullChat = await client.getEntity(chatId);
+          const fullChat = await client.getEntity(parseInt(chatId));
           if (fullChat) {
             chatName = fullChat.title || 'Unknown Chat';
+            
+            // Determine chat type
+            if (fullChat instanceof Api.Channel) {
+              chatType = fullChat.megagroup ? 'supergroup' : 'channel';
+              
+              // Try to get join date
+              try {
+                const participant = await client.invoke(
+                  new Api.channels.GetParticipant({
+                    channel: new Api.InputChannel({
+                      channelId: fullChat.id,
+                      accessHash: fullChat.accessHash,
+                    }),
+                    participant: new Api.InputPeerSelf(),
+                  })
+                );
+                
+                if (participant.participant && participant.participant.date) {
+                  joinDate = new Date(participant.participant.date * 1000);
+                }
+              } catch (e) {
+                // Use current date if can't get join date
+                joinDate = new Date();
+              }
+            } else if (fullChat instanceof Api.Chat) {
+              chatType = 'group';
+            }
           }
         } catch (e) {
           // Ignore errors getting chat info
+          chatType = 'unknown';
         }
       }
 
       return {
         chatId: chatId || '',
         name: chatName || 'Unknown Chat',
+        chatType: chatType,
+        joinDate: joinDate,
       };
     } catch (error) {
       console.error('Error joining chat by invite link:', error);

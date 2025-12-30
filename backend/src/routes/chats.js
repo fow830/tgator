@@ -45,10 +45,16 @@ router.post('/', async (req, res) => {
     // Save to database
     const chat = await prisma.chat.upsert({
       where: { chatId: joinedChat.chatId },
-      update: { name: name || joinedChat.name },
+      update: { 
+        name: name || joinedChat.name,
+        chatType: joinedChat.chatType,
+        joinDate: joinedChat.joinDate,
+      },
       create: {
         chatId: joinedChat.chatId,
         name: name || joinedChat.name,
+        chatType: joinedChat.chatType,
+        joinDate: joinedChat.joinDate,
       },
     });
 
